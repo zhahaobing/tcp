@@ -25,6 +25,7 @@ typedef struct _SYSTEMTIME
 static 	int     	SyncSocket1 	= 0;		//server socket
 static 	int 		port_cli 		= 0;		//客户端端口号
 static	char 		ipaddr_cli[32] 	= {0};		//客户端ip地址
+static 	pthread_t 	g_ptClientEventTid[1024];
 
 void 		LogInfo(const char *fmt, ...);
 void 		GetTime(SYSTEMTIME *systime);
@@ -38,7 +39,6 @@ int main(int argc, char *argv[])
     struct sockaddr_in inaddr_cli;
     int len = sizeof(inaddr_cli);
 	int rc = 0;
-	int sock = 0;
 	int ret = 0;
 
 	memset(&inaddr, 0, sizeof(inaddr));
@@ -69,48 +69,34 @@ int main(int argc, char *argv[])
 	}
 	LogInfo("listen ok ...,line=%d,func=%s.\n", __LINE__, __FUNCTION__);
 
-	sock=accept(SyncSocket1, (struct sockaddr *)&inaddr_cli, (socklen_t *)&len);
-	if(sock <0)
-	{
-		perror("accept error\n");
-		close(SyncSocket1);
-		return -1;
-	}
-	port_cli = ntohs(inaddr_cli.sin_port);
-	in = inaddr_cli.sin_addr;
-	inet_ntop(AF_INET, &in, ipaddr_cli, sizeof(ipaddr_cli));
-	LogInfo("ip=%s,port=%d connected.\n", ipaddr_cli, port_cli);
-	LogInfo("connect ok\n");
-
 	//接收消息
 	while(1)
-	{
-		char buf[1024];
-		memset(buf,0,1024);
-		ret = recv(sock, buf, sizeof(buf),0);
-		if(ret<0)
+	{		
+		int sock = 0;
+		pthread_t pid;
+		pthread_attr_t thread_attr;
+		
+		sock=accept(SyncSocket1, (struct sockaddr *)&inaddr_cli, (socklen_t *)&len);
+		if(sock <0)
 		{
-			perror("recv error\n");
+			perror("accept error\n");
 			close(SyncSocket1);
-			close(sock);
 			return -1;
 		}
-		LogInfo("received from %s:%s\n", ipaddr_cli, buf);
-		//memset(buf,0,1024);
-		if(strlen(buf) <= 0)
+		port_cli = ntohs(inaddr_cli.sin_port);
+		in = inaddr_cli.sin_addr;
+		inet_ntop(AF_INET, &in, ipaddr_cli, sizeof(ipaddr_cli));
+		LogInfo("ip=%s,port=%d connected.\n", ipaddr_cli, port_cli);
+		LogInfo("connect ok\n");
+		
+		pthread_attr_init(&thread_attr);
+		pid = pthread_create(&g_ptClientEventTid, &thread_attr, ClientHandle, NULL);		
+		if(pid != 0)
 		{
-			continue;
+			printf("pid = %lu,create pthread MainEventHandle failed!func:%s,line%d\n",pid,__func__,__LINE__);
 		}
 
-		//sprintf(buf, "serverIP=%s,serverPORT=%d;clientIP=%s,clientPORT=%d", "hello,zhahaobing,unknown", 8089, ipaddr_cli, port_cli);
-		ret=send(sock, buf, sizeof(buf),0);
-		if(ret<0)
-		{
-			perror("send error\n");
-			close(SyncSocket1);
-			close(sock);
-			return -1;
-		}
+		usleep(500);
 	}
 
 	//关闭套接字
@@ -201,4 +187,28 @@ void GetLocalTime(LPSYSTEMTIME lpSystemTime)
 
 }
 
+void* 	ClientHandle(void* arg)
+{
+	// 分离线程，使主线程不必等待此线程  
+	pthread_detach(pthread_self()); 
+	int clientfd = *(int*)arg;	
+	int recvBytes = 0;
+	char* recvBuf = new char[BUFFER_SIZE];	
+	memset(recvBuf, 0, BUFFER_SIZE);  
+  
+	while(1)  
+	{  
+		if ((recvBytes=recv(clientfd, recvBuf, BUFFER_SIZE,0)) <= 0)   
+		{  
+			perror("recv出错！\n");	
+			break;	
+		}  
+		recvBuf[recvBytes]='\0';  
+		printf("recvBuf:%s\n", recvBuf);  
+	}  
+  
+	close(clientfd);  
+	return NULL;  
+
+}
 
