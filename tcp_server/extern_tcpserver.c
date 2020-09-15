@@ -8,16 +8,6 @@
 #include <arpa/inet.h>
 #include <stdarg.h>
 #include <time.h>
-#include <pthread.h>
-
-#define 	BUFFER_SIZE 	1024
-#define 	PTHREAD_SIZE 	1024
-
-typedef 	struct tagMyptherad_argument
-{
-	int 	index_thread;
-	int 	client_fd;
-}MYTHREAD_ARGUMENT;
 
 typedef struct _SYSTEMTIME
 {
@@ -34,12 +24,10 @@ typedef struct _SYSTEMTIME
 static 	int     	SyncSocket1 	= 0;		//server socket
 static 	int 		port_cli 		= 0;		//客户端端口号
 static	char 		ipaddr_cli[32] 	= {0};		//客户端ip地址
-static 	pthread_t 	g_ptClientEventTid[1024];
 
 void 		LogInfo(const char *fmt, ...);
 void 		GetTime(SYSTEMTIME *systime);
 void 		GetLocalTime(LPSYSTEMTIME lpSystemTime);
-void* 		ClientHandle(void* arg);
 
 int main(int argc, char *argv[])
 {
@@ -49,13 +37,8 @@ int main(int argc, char *argv[])
     struct sockaddr_in inaddr_cli;
     int len = sizeof(inaddr_cli);
 	int rc = 0;
+	int sock = 0;
 	int ret = 0;
-	int i = 0;
-	
-	for(i=0; i< PTHREAD_SIZE; i++)
-	{
-		g_ptClientEventTid[i] = 0;
-	}
 
 	memset(&inaddr, 0, sizeof(inaddr));
 	inaddr.sin_family = AF_INET;
@@ -85,49 +68,53 @@ int main(int argc, char *argv[])
 	}
 	LogInfo("listen ok ...,line=%d,func=%s.\n", __LINE__, __FUNCTION__);
 
+	sock=accept(SyncSocket1, (struct sockaddr *)&inaddr_cli, (socklen_t *)&len);
+	if(sock <0)
+	{
+		perror("accept error\n");
+		close(SyncSocket1);
+		return -1;
+	}
+	port_cli = ntohs(inaddr_cli.sin_port);
+	in = inaddr_cli.sin_addr;
+	inet_ntop(AF_INET, &in, ipaddr_cli, sizeof(ipaddr_cli));
+	LogInfo("ip=%s,port=%d connected.\n", ipaddr_cli, port_cli);
+	LogInfo("connect ok\n");
+
 	//接收消息
 	while(1)
-	{		
-		int sock = 0;
-		pthread_t pid;
-		pthread_attr_t thread_attr;
-		MYTHREAD_ARGUMENT tmp_arg;
-			
-		sock=accept(SyncSocket1, (struct sockaddr *)&inaddr_cli, (socklen_t *)&len);
-		if(sock <0)
+	{
+		char buf[1024];
+		memset(buf,0,1024);
+		ret = recv(sock, buf, sizeof(buf),0);
+		if(ret<0)
 		{
-			perror("accept error\n");
+			perror("recv error\n");
 			close(SyncSocket1);
+			close(sock);
 			return -1;
 		}
-		port_cli = ntohs(inaddr_cli.sin_port);
-		in = inaddr_cli.sin_addr;
-		inet_ntop(AF_INET, &in, ipaddr_cli, sizeof(ipaddr_cli));
-		LogInfo("ip=%s,port=%d connected.\n", ipaddr_cli, port_cli);
-		LogInfo("connect ok\n");
-		
-		pthread_attr_init(&thread_attr);
-		for(i=0; i< PTHREAD_SIZE; i++)
+		LogInfo("received from %s:%s\n", ipaddr_cli, buf);
+		//memset(buf,0,1024);
+		if(strlen(buf) <= 0)
 		{
-			if(0 != g_ptClientEventTid[i])
-			{
-				tmp_arg.index_thread = i;
-				tmp_arg.client_fd = sock;
-				pid = pthread_create(&g_ptClientEventTid[i], &thread_attr, ClientHandle, &tmp_arg);
-				if(pid != 0)
-				{
-					printf("pid = %lu,create pthread ClientHandle failed!func=%s,line=%d.\n",pid,__func__,__LINE__);
-				}
-
-				break;
-			}
+			continue;
 		}
 
-		usleep(500);
+		//sprintf(buf, "serverIP=%s,serverPORT=%d;clientIP=%s,clientPORT=%d", "hello,zhahaobing,unknown", 8089, ipaddr_cli, port_cli);
+		ret=send(sock, buf, sizeof(buf),0);
+		if(ret<0)
+		{
+			perror("send error\n");
+			close(SyncSocket1);
+			close(sock);
+			return -1;
+		}
 	}
 
 	//关闭套接字
 	close(SyncSocket1);
+	close(sock);
 	return 0;
 }
 
@@ -213,50 +200,4 @@ void GetLocalTime(LPSYSTEMTIME lpSystemTime)
 
 }
 
-void* 	ClientHandle(void* arg)
-{
-	// 分离线程，使主线程不必等待此线程  
-	pthread_detach(pthread_self()); 
-	MYTHREAD_ARGUMENT mythread_arg = *(MYTHREAD_ARGUMENT*)arg;	
-	int 	recvBytes = 0;
-	int 	ret = 0;	
-	int 	client_fd = mythread_arg.client_fd;
-	int 	index_thread = mythread_arg.index_thread;
-	char 	recvBuf[BUFFER_SIZE];
-
-	memset(recvBuf, 0, BUFFER_SIZE);  
-  
-	while(1)  
-	{  
-		if ((recvBytes=recv(client_fd, recvBuf, BUFFER_SIZE,0)) <= 0)   
-		{  
-			perror("recv出错！\n");	
-			break;	
-		}  
-		recvBuf[recvBytes]='\0';  
-		printf("recvBuf:%s\n", recvBuf);  
-
-		if(strlen(recvBuf) <= 0)
-		{
-			continue;
-		}
-
-		//sprintf(buf, "serverIP=%s,serverPORT=%d;clientIP=%s,clientPORT=%d", "hello,zhahaobing,unknown", 8089, ipaddr_cli, port_cli);
-		ret=send(client_fd, recvBuf, sizeof(recvBuf), 0);
-		if(ret<0)
-		{
-			perror("send error\n");
-			//close(sock);
-			break;
-		}
-	}  
-  
-	close(client_fd);
-	if(index_thread >=0 && index_thread < PTHREAD_SIZE)
-	{
-		g_ptClientEventTid[index_thread] = 0;
-	}
-
-	return NULL;  
-}
 
