@@ -109,15 +109,16 @@ int main(int argc, char *argv[])
 		pthread_attr_init(&thread_attr);
 		for(i=0; i< PTHREAD_SIZE; i++)
 		{
-			if(0 != g_ptClientEventTid[i])
+			if(0 == g_ptClientEventTid[i])
 			{
 				tmp_arg.index_thread = i;
 				tmp_arg.client_fd = sock;
 				pid = pthread_create(&g_ptClientEventTid[i], &thread_attr, ClientHandle, &tmp_arg);
 				if(pid != 0)
 				{
-					printf("pid = %lu,create pthread ClientHandle failed!func=%s,line=%d.\n",pid,__func__,__LINE__);
+					LogInfo("pid = %lu,create pthread ClientHandle failed!func=%s,line=%d.\n",pid,__func__,__LINE__);
 				}
+				g_ptClientEventTid[i] = 1;
 
 				break;
 			}
@@ -227,14 +228,15 @@ void* 	ClientHandle(void* arg)
 	memset(recvBuf, 0, BUFFER_SIZE);  
   
 	while(1)  
-	{  
+	{
+		char 	aline[8] = "\r\n";
 		if ((recvBytes=recv(client_fd, recvBuf, BUFFER_SIZE,0)) <= 0)   
 		{  
-			perror("recv³ö´í£¡\n");	
+			LogInfo("recv³ö´í£¡\n");	
 			break;	
 		}  
-		recvBuf[recvBytes]='\0';  
-		printf("recvBuf:%s\n", recvBuf);  
+		strcat(recvBuf, aline);
+		LogInfo("recvBuf:%s", recvBuf);  
 
 		if(strlen(recvBuf) <= 0)
 		{
@@ -245,10 +247,12 @@ void* 	ClientHandle(void* arg)
 		ret=send(client_fd, recvBuf, sizeof(recvBuf), 0);
 		if(ret<0)
 		{
-			perror("send error\n");
+			LogInfo("send error\n");
 			//close(sock);
 			break;
 		}
+		
+		memset(recvBuf, 0, BUFFER_SIZE);  
 	}  
   
 	close(client_fd);
