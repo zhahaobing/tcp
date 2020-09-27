@@ -1,4 +1,4 @@
-CROSS_COMPILE := /usr/bin/aarch64-linux-gnu-gcc
+CROSS_COMPILE := /opt/gcc-linaro-4.9-2016.02-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc
 
 #SUBDIRS := $(shell ls -d ./drivers/*/)
 TGTDIR := $(shell pwd)/exe

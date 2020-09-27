@@ -131,11 +131,11 @@ void LogInfo(const char *fmt, ...)
     va_list    vargs;
 
     /* open log file */
-    FILE *fp = fopen("/mnt/zhahaobing_sync/sync_server.log", "at");
+    FILE *fp = fopen("/mnt/zhahaobing/tcp_server.log", "at");
     if (fp == NULL)
 	{
-		system("mkdir -p /mnt/zhahaobing_sync/");
-		fp = fopen("/mnt/zhahaobing_sync/sync_server.log", "at");
+		system("mkdir -p /mnt/zhahaobing/");
+		fp = fopen("/mnt/zhahaobing/tcp_server.log", "at");
 		if (fp == NULL) return;
     }
 	fseek(fp,0,SEEK_END);
@@ -143,7 +143,7 @@ void LogInfo(const char *fmt, ...)
 	if(dwLength > 10*1024*1204)	//如果数据大于10M，则文件数据清除，从头开始写
 	{
 		fclose(fp);
-		fp = fopen("/mnt/zhahaobing_sync/sync_server.log","w+");
+		fp = fopen("/mnt/zhahaobing/tcp_server.log","w+");
 		if(fp == NULL)
 		{
 			return;
