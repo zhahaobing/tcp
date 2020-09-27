@@ -9,37 +9,15 @@
 #include <stdarg.h>
 #include <time.h>
 #include <pthread.h>
+#include "tcpserver.h"
 
 #define 	BUFFER_SIZE 	1024
 #define 	PTHREAD_SIZE 	1024
-
-typedef 	struct tagMyptherad_argument
-{
-	int 	index_thread;
-	int 	client_fd;
-}MYTHREAD_ARGUMENT;
-
-typedef struct _SYSTEMTIME
-{
-	unsigned short wYear;
-	unsigned short wMonth;
-	unsigned short wDayOfWeek;
-	unsigned short wDay;
-	unsigned short wHour;
-	unsigned short wMinute;
-	unsigned short wSecond;
-	unsigned short wMilliseconds;
-} SYSTEMTIME, *PSYSTEMTIME, *LPSYSTEMTIME;
 
 static 	int     	SyncSocket1 	= 0;		//server socket
 static 	int 		port_cli 		= 0;		//客户端端口号
 static	char 		ipaddr_cli[32] 	= {0};		//客户端ip地址
 static 	pthread_t 	g_ptClientEventTid[1024];
-
-void 		LogInfo(const char *fmt, ...);
-void 		GetTime(SYSTEMTIME *systime);
-void 		GetLocalTime(LPSYSTEMTIME lpSystemTime);
-void* 		ClientHandle(void* arg);
 
 int main(int argc, char *argv[])
 {
@@ -48,10 +26,24 @@ int main(int argc, char *argv[])
 	struct in_addr in;	
     struct sockaddr_in inaddr_cli;
     int len = sizeof(inaddr_cli);
-	int rc = 0;
-	int ret = 0;
+	int tcp_port = 0;
+    int rc = 0;
+	//int ret = 0;
 	int i = 0;
-	
+
+    if(argc != 2)
+	{
+        printf("Usage:./a.out tcp_port\n");
+        return -1;        
+    }
+
+    tcp_port = atoi(argv[1]);
+    if(tcp_port > 65535 || tcp_port < 10)
+    {
+        printf("error:tcp_port is between 1024 to 65535.\n");
+        return -1;
+    }
+
 	for(i=0; i< PTHREAD_SIZE; i++)
 	{
 		g_ptClientEventTid[i] = 0;
@@ -59,7 +51,7 @@ int main(int argc, char *argv[])
 
 	memset(&inaddr, 0, sizeof(inaddr));
 	inaddr.sin_family = AF_INET;
-	inaddr.sin_port = htons(2404);
+	inaddr.sin_port = htons(tcp_port);
 	inaddr.sin_addr.s_addr = inet_addr("0.0.0.0");
 	LogInfo("start...,line=%d,func=%s.\n", __LINE__, __FUNCTION__);
 
